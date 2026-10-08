@@ -1,0 +1,112 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// A coin from the CoinGecko top-N universe, optionally mapped to a MEXC USDT pair.
+model Coin {
+  id             Int      @id @default(autoincrement())
+  coingeckoId    String   @unique
+  symbol         String
+  name           String
+  marketCapRank  Int?
+  marketCapUsd   Float?
+  /// MEXC spot symbol, e.g. "BTCUSDT". Null when no tradable USDT pair exists.
+  mexcSymbol     String?  @unique
+  /// 24h quote (USDT) volume on MEXC, used for the liquidity filter.
+  quoteVolume24h Float?
+  isScannable    Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  candles Candle[]
+  signals Signal[]
+
+  @@index([isScannable])
+  @@map("coins")
+}
+
+/// Closed OHLCV candles from MEXC. Only fully closed candles are stored, so rows are immutable.
+model Candle {
+  coinId    Int
+  /// One of the shared TIMEFRAMES: 15m | 1h | 4h | 1d
+  timeframe String
+  openTime  DateTime
+  open      Float
+  high      Float
+  low       Float
+  close     Float
+  volume    Float
+
+  coin Coin @relation(fields: [coinId], references: [id], onDelete: Cascade)
+
+  @@id([coinId, timeframe, openTime])
+  @@map("candles")
+}
+
+/// Per-strategy configuration. `params` is validated against the strategy's own schema.
+model StrategyConfig {
+  key       String   @id
+  enabled   Boolean  @default(true)
+  weight    Int
+  params    Json
+  updatedAt DateTime @updatedAt
+
+  @@map("strategy_configs")
+}
+
+/// A scored opportunity for one coin, timeframe and closed candle.
+model Signal {
+  id             Int      @id @default(autoincrement())
+  coinId         Int
+  timeframe      String
+  candleOpenTime DateTime
+  /// bullish | bearish
+  direction      String
+  score          Int
+  /// Close price of the evaluated candle.
+  price          Float
+  /// Contributing strategies: [{ key, name, weight, reason }]
+  reasons        Json
+  /// Every evaluated strategy result, for transparency/debugging.
+  results        Json
+  createdAt      DateTime @default(now())
+
+  coin  Coin   @relation(fields: [coinId], references: [id], onDelete: Cascade)
+  alert Alert?
+
+  @@unique([coinId, timeframe, candleOpenTime, direction])
+  @@index([timeframe, candleOpenTime])
+  @@index([createdAt])
+  @@map("signals")
+}
+
+/// A notification sent (or attempted) for a signal. One per signal at most.
+model Alert {
+  id       Int      @id @default(autoincrement())
+  signalId Int      @unique
+  channel  String
+  /// sent | failed
+  status   String
+  error    String?
+  sentAt   DateTime @default(now())
+
+  signal Signal @relation(fields: [signalId], references: [id], onDelete: Cascade)
+
+  @@map("alerts")
+}
+
+/// Free-form application settings stored as JSON, validated in SettingsService.
+model AppSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@map("app_settings")
+}

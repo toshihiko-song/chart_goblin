@@ -1,0 +1,30 @@
+{
+  "name": "chart-goblin",
+  "private": true,
+  "description": "Crypto opportunity scanner: CoinGecko universe, MEXC candles, scored strategy signals, Telegram alerts.",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "postinstall": "npm run build -w packages/shared",
+    "db:up": "docker compose up -d --wait db",
+    "db:down": "docker compose down",
+    "db:migrate": "npm run prisma:migrate -w apps/api",
+    "dev:api": "npm run start:dev -w apps/api",
+    "dev:web": "npm run dev -w apps/web",
+    "dev:shared": "npm run dev -w packages/shared",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:e2e": "npm run test:e2e -w apps/api",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "oxlint": "^1.87.0",
+    "prettier": "^3.9.9"
+  }
+}
